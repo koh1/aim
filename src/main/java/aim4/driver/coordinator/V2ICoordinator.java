@@ -35,6 +35,8 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Queue;
 
+import org.apache.log4j.Logger;
+
 import aim4.config.Debug;
 import aim4.config.SimConfig;
 import aim4.config.Constants.TurnDirection;
@@ -59,6 +61,7 @@ import aim4.msg.v2i.Request;
 import aim4.util.Util;
 import aim4.vehicle.AccelSchedule;
 import aim4.vehicle.AutoVehicleDriverView;
+import aim4.vehicle.BasicAutoVehicle;
 import aim4.vehicle.VehicleUtil;
 
 /**
@@ -72,7 +75,7 @@ import aim4.vehicle.VehicleUtil;
  * reflect the current reservation status.
  */
 public class V2ICoordinator implements Coordinator {
-
+  private Logger logger = Logger.getLogger(V2ICoordinator.class);
   /////////////////////////////////
   // CONSTANTS
   /////////////////////////////////
@@ -133,8 +136,10 @@ public class V2ICoordinator implements Coordinator {
 
   /**
    * The maximum expected time that IM needs to reply a request message.
+   * DEFAULT VALUE is 0.04
    */
-  private static final double MAX_EXPECTED_IM_REPLY_TIME = 0.04;
+  private static final double MAX_EXPECTED_IM_REPLY_TIME = 0.3;
+  
 
   /**
    * The slight reduction of the acceleration of the vehicle
@@ -897,7 +902,11 @@ public class V2ICoordinator implements Coordinator {
    */
   private boolean isDebugging;
 
-
+  private int unacceptableCounter;
+  private int conflictCounter;
+  private double startAllocation;
+  private boolean isPlanning;
+  private boolean isAwaitingResponse;
   /////////////////////////////////
   // CONSTRUCTORS
   /////////////////////////////////
@@ -936,9 +945,15 @@ public class V2ICoordinator implements Coordinator {
     latestReservationNumber = -1;
     // next request id is 0
     nextRequestId = 0;
-
+    
+    unacceptableCounter = 0;
+    conflictCounter = 0;
+    startAllocation = this.vehicle.gaugeTime();
+    isAwaitingResponse = false;
+    
     // Set the intial state
     setState(State.V2I_PLANNING);
+    isPlanning = true;
   }
 
 
@@ -946,6 +961,11 @@ public class V2ICoordinator implements Coordinator {
   // PUBLIC METHODS
   /////////////////////////////////
 
+  public String dumpStatus(String status) {
+	  return String.format("%s %f %d %d %d %f", status, vehicle.gaugeTime(), vehicle.getVIN(), conflictCounter, unacceptableCounter, 
+			  ((BasicAutoVehicle)vehicle).getDelayGauge().read());
+  }
+  
   /**
    * Receive, process, and send messages between Vehicles and
    * IntersectionManagers, and maintain the reservation status in
@@ -1159,6 +1179,7 @@ public class V2ICoordinator implements Coordinator {
       }
       vehicle.setAccelSchedule(as);
       setState(State.V2I_MAINTAINING_RESERVATION);
+      logger.info(dumpStatus("RESERVATION_CONFIRMED"));
     } else {
       // must cancel the reservation
       sendCancelMessage(latestReservationNumber);
@@ -1166,6 +1187,7 @@ public class V2ICoordinator implements Coordinator {
       // remove the acceleration profile.
       vehicle.removeAccelSchedule();
       setState(State.V2I_PLANNING);
+      unacceptableCounter += 1;
       // TODO: think whether it is better to let the state controller to
       // switch state.
     }
@@ -1204,6 +1226,7 @@ public class V2ICoordinator implements Coordinator {
     case NO_CLEAR_PATH:
       // normal reason for rejection, just go back to the planning state.
       goBackToPlanningStateUponRejection(msg);
+      conflictCounter += 1;
       break;
     case CONFIRMED_ANOTHER_REQUEST:
       // TODO: RETHINK WHAT WE SHOULD DO
@@ -1386,6 +1409,8 @@ public class V2ICoordinator implements Coordinator {
      * @return the estimated arrival parameters at the intersection
      */
     private ArrivalEstimationResult estimateArrival(double maxArrivalVelocity) {
+      long startTime = System.nanoTime();
+      long endTime = 0;
       // The basic parameters
       double time1 = vehicle.gaugeTime();
       double v1 = vehicle.gaugeVelocity();
@@ -1481,11 +1506,15 @@ public class V2ICoordinator implements Coordinator {
           System.err.printf("vin %d: arrival estimation failed: %s",
                             vehicle.getVIN(), e.getMessage());
         }
+        endTime = System.nanoTime();
+        logger.info("ARRIVAL_ESTIMATE_TIME(FAILED) " + (endTime - startTime)/1000.0 + " " + vehicle.getVIN());
         return null;
       }
       if (isDebugging) {
         System.err.printf("accelSchedule = %s\n", result.getAccelSchedule());
       }
+      endTime = System.nanoTime();
+      logger.info("ARRIVAL_ESTIMATE_TIME " + (endTime - startTime)/1000.0 + " " + vehicle.getVIN());      
       return result;
     }
 
@@ -1657,6 +1686,7 @@ public class V2ICoordinator implements Coordinator {
       if (proposals != null) {
         sendRequestMessage(proposals);
         setState(State.V2I_AWAITING_RESPONSE);
+        logger.info(dumpStatus("AWAITING_RESPONSE"));
         return true;  // let the state controller for V2I_AWAITING_RESPONSE
                       // to control the vehicle.
       } else {

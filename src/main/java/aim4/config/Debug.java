@@ -77,7 +77,7 @@ public class Debug {
   /**
    * Whether or not the vehicle is allowed to change lanes
    */
-  public static final boolean CAN_CHANGE_LANE = false;
+  public static final boolean CAN_CHANGE_LANE = true;
 
   /**
    * Whether or not the driver considers the expected time the IM takes
@@ -85,6 +85,12 @@ public class Debug {
    */
   public static final boolean IS_EXPECTED_IM_REPLY_TIME_CONSIDERED = true;
 
+  
+  /** 
+   * switch to evaluation with network delay between vehicles and intersection manager
+   * WITH_NW_DELAY, NORMAL
+   */
+  public static final String MODE = "WITH_NW_DELAY";
 
   /////////////////////////////////
   // PUBLIC STATIC METHODS

@@ -32,17 +32,23 @@ package aim4.vehicle;
 
 import java.awt.geom.Point2D;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
+
+import org.apache.log4j.Logger;
 
 import aim4.config.Debug;
 import aim4.driver.AutoDriver;
 import aim4.driver.DriverSimView;
 import aim4.map.lane.Lane;
 import aim4.msg.i2v.I2VMessage;
+import aim4.msg.i2v.I2VMessageComparator;
 import aim4.msg.v2i.V2IMessage;
 import aim4.noise.DoubleGauge;
+import aim4.noise.GaussianNoiseFunction;
 import aim4.vehicle.AutoVehicleDriverView.LRFMode;
 
 
@@ -51,7 +57,7 @@ import aim4.vehicle.AutoVehicleDriverView.LRFMode;
  */
 public class BasicAutoVehicle extends BasicVehicle
                               implements AutoVehicleSimView {
-
+  private Logger logger = Logger.getLogger(BasicAutoVehicle.class);
   /////////////////////////////////
   // CONSTANTS
   /////////////////////////////////
@@ -78,6 +84,16 @@ public class BasicAutoVehicle extends BasicVehicle
    */
   public static final double DEFAULT_TRANSMISSION_POWER = 250; // meters
 
+  private static final double DEFAULT_DELAY_TO_IM = 0.1;
+  private static final double DEFAULT_DELAY_TO_IM_STD = 0.02;
+  private static final double MAX_DELAY_TO_IM = 0.3;
+  private static final double MIN_DELAY_TO_IM = 0.02;
+  
+  /**
+   * Additional Private fields
+   */
+  private DoubleGauge delayGauge;
+  private double spawnTime;
 
   /////////////////////////////////
   // PRIVATE FIELDS
@@ -278,14 +294,33 @@ public class BasicAutoVehicle extends BasicVehicle
                           double currentTime) {
     super(spec, pos, heading, velocity, steeringAngle, acceleration,
           targetVelocity, currentTime);
+    delayGauge = new DoubleGauge(DEFAULT_DELAY_TO_IM, MIN_DELAY_TO_IM, MAX_DELAY_TO_IM, 
+    		new GaussianNoiseFunction(DEFAULT_DELAY_TO_IM_STD));
+    spawnTime = currentTime;
   }
 
+  /**
+   * ADDITIONAL PUBLIC METHODS
+   */
+  public DoubleGauge getDelayGauge() {
+	  return delayGauge;
+  }
+  
+  public double getSpawnTime() {
+	return spawnTime;
+  }
 
+  public void setSpawnTime(double spawnTime) {
+	this.spawnTime = spawnTime;
+  }
+  
   /////////////////////////////////
   // PUBLIC METHODS
   /////////////////////////////////
 
-  /**
+
+
+/**
    * {@inheritDoc}
    */
   @Override
@@ -489,8 +524,33 @@ public class BasicAutoVehicle extends BasicVehicle
     // TODO: many need to make this function atomic to avoid
     // putting messages in the queue and retrieve from it at the same time.
     List<I2VMessage> msgs = new ArrayList<I2VMessage>(i2vInbox);
-    i2vInbox.clear();
-    return msgs;
+	if (Debug.MODE.equals("WITH_NW_DELAY_TEMP")) {
+	    i2vInbox.clear();
+	    List<I2VMessage> retArray = new ArrayList<I2VMessage>();
+	    Collections.sort(msgs, new I2VMessageComparator());
+		Iterator<I2VMessage> iter = msgs.iterator();
+		I2VMessage msg;
+		while(iter.hasNext()) {
+			msg = iter.next();
+			if (msg.getTimeToBeReceived() <= currentTime) {
+				retArray.add(msg);
+			} else {
+				i2vInbox.add(msg);
+				break;
+			}
+		}
+		while(iter.hasNext()) {
+			I2VMessage m = iter.next();
+			i2vInbox.add(m);
+		}
+	    return retArray;
+	} else if (Debug.MODE.equals("NORMAL") || Debug.MODE.equals("WITH_NW_DELAY")) {
+		i2vInbox.clear();
+		return msgs;
+	} else {
+		logger.error("There is no MODE for " + Debug.MODE);
+		return null;
+	}    
   }
 
 
@@ -502,6 +562,16 @@ public class BasicAutoVehicle extends BasicVehicle
     if (Debug.isPrintVehicleOutboxMessageOfVIN(msg.getVin())) {
       System.err.printf("vin %d sends message: %s\n", vin, msg);
     }
+    if (Debug.MODE.equals("WITH_NW_DELAY")) {
+        msg.setTimestamp(currentTime);
+        //msg.setTimeToBeReceived(currentTime+DEFAULT_LATENCY_TO_IM);
+        delayGauge.record(DEFAULT_DELAY_TO_IM);
+        //latencyGauge.record(DEFAULT_LATENCY_TO_IM);
+        msg.setTimeToBeReceived(currentTime+delayGauge.read()); // static for each vehicle
+        msg.setCommDelay(delayGauge.read());
+        logger.info("SEND_MESSAGE " + msg.getVin() + " " + delayGauge.read());
+    }
+   
     v2iOutbox.add(msg);
     bitsTransmitted += msg.getSize();
     lastV2IMessage = msg;

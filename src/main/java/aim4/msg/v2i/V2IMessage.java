@@ -98,6 +98,14 @@ public abstract class V2IMessage {
    * The size, in bits, of this message.
    */
   protected int size = Constants.ENUM_SIZE + 2 * Constants.INTEGER_SIZE;
+  
+  
+  /**
+   * additional fields
+   */
+  private double timestamp;
+  private double timeToBeReceived;
+  private double commDelay;
 
   /////////////////////////////////
   // CLASS CONSTRUCTORS
@@ -163,5 +171,29 @@ public abstract class V2IMessage {
    */
   public int getSize() {
     return size;
+  }
+
+  public double getTimestamp() {
+	return timestamp;
+  }
+
+  public void setTimestamp(double timestamp) {
+	this.timestamp = timestamp;
+  }
+
+  public double getTimeToBeReceived() {
+	return timeToBeReceived;
+  }
+
+  public void setTimeToBeReceived(double timeToBeReceived) {
+	this.timeToBeReceived = timeToBeReceived;
+  }
+
+  public double getCommDelay() {
+	return commDelay;
+  }
+
+  public void setCommDelay(double commDelay) {
+	this.commDelay = commDelay;
   }
 }

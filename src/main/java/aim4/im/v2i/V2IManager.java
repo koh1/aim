@@ -34,10 +34,13 @@ import java.awt.Shape;
 import java.io.FileNotFoundException;
 import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
+
+import org.apache.log4j.Logger;
 
 import aim4.config.Debug;
 import aim4.im.Intersection;
@@ -51,6 +54,7 @@ import aim4.im.v2i.reservation.ReservationGridManager;
 import aim4.map.lane.Lane;
 import aim4.msg.i2v.I2VMessage;
 import aim4.msg.v2i.V2IMessage;
+import aim4.msg.v2i.V2IMessageComparator;
 import aim4.sim.StatCollector;
 import aim4.util.Registry;
 import aim4.util.TiledArea;
@@ -64,6 +68,7 @@ import aim4.util.TiledArea;
 public class V2IManager extends IntersectionManager
                         implements V2IManagerCallback {
 
+  private Logger logger = Logger.getLogger(V2IManager.class);
   /////////////////////////////////
   // CONSTANTS
   /////////////////////////////////
@@ -116,7 +121,10 @@ public class V2IManager extends IntersectionManager
   private int bitsReceived;
   /** The number of bits this IntersectionManager has transmitted. */
   private int bitsTransmitted;
-
+  private int prevBitsReceived;
+  private int prevBitsTransmitted;
+  private int reqReceived;
+  private int prevReqReceived;
 
   // intersection
 
@@ -187,6 +195,12 @@ public class V2IManager extends IntersectionManager
       aczs.put(l.getId(), acz);
       aczManagers.put(l.getId(), new AczManager(acz));
     }
+    bitsReceived = 0;
+    bitsTransmitted = 0;
+    prevBitsReceived = 0;
+    prevBitsTransmitted = 0;
+    reqReceived = 0;
+    prevReqReceived = 0;
   }
 
 
@@ -225,22 +239,62 @@ public class V2IManager extends IntersectionManager
    */
   @Override
   public void act(double timeStep) {
-    // First, process all the incoming messages waiting for us
-    for(Iterator<V2IMessage> iter = inboxIterator(); iter.hasNext();) {
-      V2IMessage msg = iter.next();
-      if (Debug.isPrintIMInboxMessageOfVIN(msg.getVin())) {
-        System.err.printf("im %d process message of vin %d: %s\n",
-                          getId(), msg.getVin(), msg);
-      }
-      processV2IMessage(msg);
-    }
-    // Done processing, clear the inbox.
-    clearInbox();
+	 
+	int counter = 0;
+	long stepStartTime = System.nanoTime();
+	if (Debug.MODE.equals("NORMAL")) {
+	    // First, process all the incoming messages waiting for us
+	    for(Iterator<V2IMessage> iter = inboxIterator(); iter.hasNext();) {
+	      V2IMessage msg = iter.next();
+	      if (Debug.isPrintIMInboxMessageOfVIN(msg.getVin())) {
+	        System.err.printf("im %d process message of vin %d: %s\n",
+	                          getId(), msg.getVin(), msg);
+	      }
+	      long startTime = System.nanoTime();
+	      processV2IMessage(msg);
+	      long endTime = System.nanoTime();
+	      logger.info("V2I_MSG_PROCESSED " + (endTime - startTime)/1000.0 + " " + msg.getVin());
+	      counter += 1;
+	    }
+	    // Done processing, clear the inbox.
+	    clearInbox();
+	} else if (Debug.MODE.equals("WITH_NW_DELAY")) {
+		Collections.sort(inbox, new V2IMessageComparator());
+	    // First, process all the incoming messages waiting for us
+		for (Iterator<V2IMessage> iter = inboxIterator(); iter.hasNext();) {
+			V2IMessage msg = iter.next();
+			if (msg.getTimeToBeReceived() <= currentTime) {
+				//System.out.println(msg.getTimeToBeReceived() + " < " + currentTime);
+				if (Debug.isPrintIMInboxMessageOfVIN(msg.getVin())) {
+					System.err.printf("im %d process message of vin %d: %s\n", getId(), msg.getVin(), msg);
+				}
+				long startTime = System.nanoTime();
+				processV2IMessage(msg);
+				long endTime = System.nanoTime();
+				logger.info("V2I_MSG_PROCESSED " + (endTime - startTime)/1000.0 + " " + msg.getVin());
+				counter += 1;
+			} else {
+				break;
+				//because the inbox is sorted
+			}
+		}
+		// remove the processed messages from inbox
+		for (int i=0; i<counter; i++) {
+			inbox.remove(0);
+		}		
+	}
     // Second, allow the policy to act, and send outgoing messages.
     policy.act(timeStep);
     // Third, allow the reservation grid manager to act
     reservationGridManager.act(timeStep);
+    long stepEndTime = System.nanoTime();
+    logger.info("V2I_MESSAGE_PROCESSED_PER_STEP " + (stepEndTime - stepStartTime)/1000.0 + " " + counter);
     // Advance current time.
+    //logger.info();
+    logger.info("IM_RX_TX_BITS_PER_STEP " + currentTime + " " + (bitsReceived - prevBitsReceived) + " " + (bitsTransmitted - prevBitsTransmitted) + " " + (reqReceived - prevReqReceived));
+    prevBitsReceived = bitsReceived;
+    prevBitsTransmitted = bitsTransmitted;
+    prevReqReceived = reqReceived;
     super.act(timeStep);
   }
 
@@ -307,6 +361,8 @@ public class V2IManager extends IntersectionManager
     inbox.add(msg);
     // And count the bits.
     bitsReceived += msg.getSize();
+    reqReceived += 1;
+    
   }
 
   /**
@@ -387,6 +443,13 @@ public class V2IManager extends IntersectionManager
       System.err.printf("im %d sends a message to vin %d: %s\n",
                         getId(), msg.getVin(), msg);
     }
+    if (Debug.MODE.equals("WITH_NW_DELAY_TEMP")) {
+        msg.setTimestamp(currentTime);
+        msg.setTimeToBeReceived(currentTime);
+        logger.info("sendI2VMessage");
+        //latencyGauge.record(DEFAULT_LATENCY_TO_VEHICLES);
+        //msg.setTimeToBeReceived(currentTime+latencyGauge.read());
+    }    
     outbox.add(msg);
     bitsTransmitted += msg.getSize();
   }
