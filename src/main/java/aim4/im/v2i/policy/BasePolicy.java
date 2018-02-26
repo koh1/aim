@@ -36,6 +36,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.log4j.Logger;
+
 import aim4.config.Debug;
 import aim4.im.TrackModel;
 import aim4.im.v2i.V2IManager;
@@ -63,6 +65,7 @@ import aim4.vehicle.VehicleUtil;
  * The base policy.
  */
 public final class BasePolicy implements Policy, ExtendedBasePolicyCallback {
+  private Logger logger = Logger.getLogger(BasePolicy.class);
 
   /////////////////////////////////
   // CONSTANTS
@@ -514,7 +517,6 @@ public final class BasePolicy implements Policy, ExtendedBasePolicyCallback {
     ReservationGridManager.Plan gridPlan = null;
     AczManager aczManager = null;
     AczManager.Plan aczPlan = null;
-
     for(Request.Proposal proposal : proposals) {
       ReservationGridManager.Query gridQuery =
         new ReservationGridManager.Query(vin,

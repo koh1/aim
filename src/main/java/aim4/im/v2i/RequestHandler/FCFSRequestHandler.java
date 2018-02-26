@@ -30,6 +30,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 package aim4.im.v2i.RequestHandler;
 
+import org.apache.log4j.Logger;
+
 import aim4.im.v2i.policy.BasePolicy;
 import aim4.im.v2i.policy.BasePolicyCallback;
 import aim4.im.v2i.policy.BasePolicy.ProposalFilterResult;
@@ -42,6 +44,7 @@ import aim4.sim.StatCollector;
  * The "First Come, First Served" request handler.
  */
 public class FCFSRequestHandler implements RequestHandler {
+  private Logger logger = Logger.getLogger(FCFSRequestHandler.class);
 
   /////////////////////////////////
   // PRIVATE FIELDS
@@ -103,6 +106,7 @@ public class FCFSRequestHandler implements RequestHandler {
     }
 
     // try to see if reservation is possible for the remaining proposals.
+
     ReserveParam reserveParam =
       basePolicy.findReserveParam(msg, filterResult.getProposals());
     if (reserveParam != null) {
