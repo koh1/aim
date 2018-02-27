@@ -84,9 +84,9 @@ public class BasicAutoVehicle extends BasicVehicle
    */
   public static final double DEFAULT_TRANSMISSION_POWER = 250; // meters
 
-  private static final double DEFAULT_DELAY_TO_IM = 0.08;
-  private static final double DEFAULT_DELAY_TO_IM_STD = 0.02;
-  private static final double MAX_DELAY_TO_IM = 0.2;
+  private static final double DEFAULT_DELAY_TO_IM = 0.1;
+  private static final double DEFAULT_DELAY_TO_IM_STD = 0.04;
+  private static final double MAX_DELAY_TO_IM = 0.3;
   private static final double MIN_DELAY_TO_IM = 0.02;
   
   /**

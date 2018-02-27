@@ -259,8 +259,9 @@ public class V2IManager extends IntersectionManager
 	    // Done processing, clear the inbox.
 	    clearInbox();
 	} else if (Debug.MODE.equals("WITH_NW_DELAY")) {
-		Collections.sort(inbox, new V2IMessageComparator());
+		//Collections.sort(inbox, new V2IMessageComparator());
 	    // First, process all the incoming messages waiting for us
+		List<V2IMessage> msgBuffer = new ArrayList<V2IMessage>();
 		for (Iterator<V2IMessage> iter = inboxIterator(); iter.hasNext();) {
 			V2IMessage msg = iter.next();
 			if (msg.getTimeToBeReceived() <= currentTime) {
@@ -274,13 +275,13 @@ public class V2IManager extends IntersectionManager
 				logger.info("V2I_MSG_PROCESSED " + (endTime - startTime)/1000.0 + " " + msg.getVin());
 				counter += 1;
 			} else {
-				break;
-				//because the inbox is sorted
+				msgBuffer.add(msg);				
 			}
 		}
+		clearInbox();
 		// remove the processed messages from inbox
-		for (int i=0; i<counter; i++) {
-			inbox.remove(0);
+		for (Iterator<V2IMessage> iter = msgBuffer.iterator(); iter.hasNext();) {
+			inbox.add(iter.next());
 		}		
 	}
     // Second, allow the policy to act, and send outgoing messages.

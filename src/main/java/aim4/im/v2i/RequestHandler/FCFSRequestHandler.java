@@ -106,7 +106,7 @@ public class FCFSRequestHandler implements RequestHandler {
     }
 
     // try to see if reservation is possible for the remaining proposals.
-
+    
     ReserveParam reserveParam =
       basePolicy.findReserveParam(msg, filterResult.getProposals());
     if (reserveParam != null) {
