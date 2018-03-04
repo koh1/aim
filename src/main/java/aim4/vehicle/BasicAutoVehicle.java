@@ -85,8 +85,8 @@ public class BasicAutoVehicle extends BasicVehicle
   public static final double DEFAULT_TRANSMISSION_POWER = 250; // meters
 
   private static final double DEFAULT_DELAY_TO_IM = 0.1;
-  private static final double DEFAULT_DELAY_TO_IM_STD = 0.04;
-  private static final double MAX_DELAY_TO_IM = 0.3;
+  private static final double DEFAULT_DELAY_TO_IM_STD = 0.05;
+  private static final double MAX_DELAY_TO_IM = 0.2;
   private static final double MIN_DELAY_TO_IM = 0.02;
   
   /**
@@ -567,9 +567,10 @@ public class BasicAutoVehicle extends BasicVehicle
         //msg.setTimeToBeReceived(currentTime+DEFAULT_LATENCY_TO_IM);
         delayGauge.record(DEFAULT_DELAY_TO_IM);
         //latencyGauge.record(DEFAULT_LATENCY_TO_IM);
-        msg.setTimeToBeReceived(currentTime+delayGauge.read()); // static for each vehicle
-        msg.setCommDelay(delayGauge.read());
-        logger.info("SEND_MESSAGE " + msg.getVin() + " " + delayGauge.read());
+        double commDelay = Math.round(delayGauge.read()/0.02) * 0.02;
+        msg.setTimeToBeReceived(currentTime+commDelay); // static for each vehicle
+        msg.setCommDelay(commDelay);
+        logger.info("SEND_MESSAGE " + msg.getVin() + " " + commDelay);
     }
    
     v2iOutbox.add(msg);

@@ -103,10 +103,13 @@ public class FCFSRequestHandler implements RequestHandler {
       basePolicy.sendRejectMsg(vin,
                                msg.getRequestId(),
                                filterResult.getReason());
+      return;
     }
 
     // try to see if reservation is possible for the remaining proposals.
-    
+    //logger.info("NO PROPOSALS? " + filterResult.isNoProposalLeft());
+    //logger.info("PROPOSALS " + filterResult.getProposals());
+    //logger.info("REASON " + filterResult.getReason());
     ReserveParam reserveParam =
       basePolicy.findReserveParam(msg, filterResult.getProposals());
     if (reserveParam != null) {

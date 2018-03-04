@@ -104,6 +104,7 @@ public class V2ICoordinator implements Coordinator {
    * Coordinator will attempt to make a reservation. This is needed because a
    * reservation cannot be made for <i>right now</i>&mdash;it will take time
    * for the request to be sent, processed, and returned. {@value} seconds.
+   * DEFAULT VALUE is 0.1
    */
   private static final double MINIMUM_FUTURE_RESERVATION_TIME = 0.1;
 
@@ -138,7 +139,7 @@ public class V2ICoordinator implements Coordinator {
    * The maximum expected time that IM needs to reply a request message.
    * DEFAULT VALUE is 0.04
    */
-  private static final double MAX_EXPECTED_IM_REPLY_TIME = 0.3;
+  private static final double MAX_EXPECTED_IM_REPLY_TIME = 0.5;
   
 
   /**
@@ -1230,22 +1231,34 @@ public class V2ICoordinator implements Coordinator {
       break;
     case CONFIRMED_ANOTHER_REQUEST:
       // TODO: RETHINK WHAT WE SHOULD DO
-      goBackToPlanningStateUponRejection(msg);
-      break;
+        goBackToPlanningStateUponRejection(msg);
+        break;
     case BEFORE_NEXT_ALLOWED_COMM:
-      throw new RuntimeException("V2ICoordinator: Cannot send reqest "+
-                                 "message before the next allowed " +
-                                 "communication time");
+    	
+        throw new RuntimeException("V2ICoordinator: Cannot send reqest "+
+                "message before the next allowed " +
+                "communication time");
+                
+        //goBackToPlanningStateUponRejection(msg);
+        //break;
     case ARRIVAL_TIME_TOO_LARGE:
+        //goBackToPlanningStateUponRejection(msg);
+        //break;
+        
       System.err.printf("vin %d\n", vehicle.getVIN());
       throw new RuntimeException("V2ICoordinator: cannot make reqest whose "+
                                  "arrival time is too far in the future");
+                                 
     case ARRIVAL_TIME_TOO_LATE:
+        //goBackToPlanningStateUponRejection(msg);
+        //break;
       // This means that by the time our message got to IM, the arrival time
       // had already passed.  It indicates an error in the proposal
       // preparation in coordinator.
+    	
       throw new RuntimeException("V2ICoordinator: Arrival time of request " +
                                  "has already passed.");
+                                 
     default:
       System.err.printf("%s\n", msg.getReason());
       throw new RuntimeException("V2ICoordinator: Unknown reason for " +
@@ -1420,7 +1433,11 @@ public class V2ICoordinator implements Coordinator {
       double vEndMax = Math.min(vTop, maxArrivalVelocity);
       double accel = vehicle.getSpec().getMaxAcceleration();
       double decel = vehicle.getSpec().getMaxDeceleration();
-
+      
+      /**
+       * Scheduling開始時刻time1を現時刻に応答遅延を加算した時点に設定する
+       * time1 + MAX_EXPECTED_IM_REPLY_TIMEとするか否か
+       */
       // If the im reply time heuristic is used.
       if (Debug.IS_EXPECTED_IM_REPLY_TIME_CONSIDERED) {
         // If an acceleration schedule exists,
@@ -1466,10 +1483,13 @@ public class V2ICoordinator implements Coordinator {
             // vehicle is still moving, so use the simple heuristic
             // to make sure that there is enough time for vehicle to
             // arrive at the intersection when checking a confirmation.
+        	//logger.info("DECREASE_ACCEL " + vehicle.getVIN() + " " + accel + " " + decel + " " + v1);
             accel -= ARRIVAL_ESTIMATE_ACCEL_SLACK;
             decel += ARRIVAL_ESTIMATE_ACCEL_SLACK;
             if (accel < 0.0) { accel = 0.0; }
             if (decel > 0.0) { decel = 0.0; }
+        	//logger.info("DECREASE_ACCEL " + vehicle.getVIN() + " " + accel + " " + decel + " " + v1);
+            
           } else { // else the vehicle has stopped.
             // no need to project the time and distance since the vehicle
             // is not moving, just update the initial time.
